@@ -1,81 +1,52 @@
 import React, { useEffect, useState } from 'react';
-import api from '../api';
+import { getDoctors, createDoctor, updateDoctor, deleteDoctor } from '../api';
+import { Doctor } from '../types';
 
-const DoctorList = () => {
-  const [doctors, setDoctors] = useState<any[]>([]);
-  const [fName, setFName] = useState('');
-  const [lName, setLName] = useState('');
-  const [spec, setSpec] = useState('');
-  const [email, setEmail] = useState('');
+const DoctorList: React.FC = () => {
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [formData, setFormData] = useState({ first_name: '', last_name: '', specialization: '', email: '' });
+    const [editId, setEditId] = useState<number | null>(null);
 
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editData, setEditData] = useState<any>(null);
+    const load = async () => { const res = await getDoctors(); setDoctors(res.data); };
+    useEffect(() => { load(); }, []);
 
-  const fetchDoctors = () => {
-    api.get('doctors/').then((res: any) => setDoctors(res.data));
-  };
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            if (editId) await updateDoctor(editId, formData);
+            else await createDoctor(formData);
+            setFormData({ first_name: '', last_name: '', specialization: '', email: '' });
+            setEditId(null);
+            load();
+        } catch (err) { alert("Error saving doctor."); }
+    };
 
-  useEffect(() => { fetchDoctors(); }, []);
-
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post('doctors/', { 
-        first_name: fName, 
-        last_name: lName, 
-        specialization: spec, 
-        email: email 
-      });
-      setFName(''); setLName(''); setSpec(''); setEmail('');
-      fetchDoctors();
-    } catch (err: any) { console.error("Add Error:", err.response?.data); }
-  };
-
-  const handleUpdate = async (id: number) => {
-    try {
-      // Kinahanglan ipadala ang tanang fields para dili mag-400 error
-      await api.put(`doctors/${id}/`, editData);
-      setEditingId(null);
-      fetchDoctors();
-    } catch (err: any) { console.error("Update Error:", err.response?.data); }
-  };
-
-  return (
-    <div className="p-4 space-y-4">
-      <form onSubmit={handleAdd} className="grid grid-cols-2 md:grid-cols-5 gap-2 bg-blue-50 p-4 rounded">
-        <input className="border p-2 rounded" placeholder="First Name" value={fName} onChange={e => setFName(e.target.value)} required />
-        <input className="border p-2 rounded" placeholder="Last Name" value={lName} onChange={e => setLName(e.target.value)} required />
-        <input className="border p-2 rounded" placeholder="Spec" value={spec} onChange={e => setSpec(e.target.value)} required />
-        <input className="border p-2 rounded" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-        <button type="submit" className="bg-blue-600 text-white rounded">Add Doctor</button>
-      </form>
-      <table className="min-w-full bg-white border rounded">
-        <thead className="bg-gray-100"><tr><th>Name</th><th>Spec</th><th>Actions</th></tr></thead>
-        <tbody>
-          {doctors.map((d: any) => (
-            <tr key={d.doctor_id} className="border-b">
-              {editingId === d.doctor_id ? (
-                <>
-                  <td><input className="border p-1 w-full" value={editData.first_name} onChange={e => setEditData({...editData, first_name: e.target.value})} /></td>
-                  <td><input className="border p-1 w-full" value={editData.specialization} onChange={e => setEditData({...editData, specialization: e.target.value})} /></td>
-                  <td className="p-2"><button onClick={() => handleUpdate(d.doctor_id)} className="text-green-600">Save</button></td>
-                </>
-              ) : (
-                <>
-                  <td className="p-2">Dr. {d.first_name} {d.last_name}</td>
-                  <td className="p-2">{d.specialization}</td>
-                  <td className="p-2 space-x-2">
-                    <button onClick={() => { setEditingId(d.doctor_id); setEditData(d); }} className="text-blue-600">Edit</button>
-                    <button onClick={() => api.delete(`doctors/${d.doctor_id}/`).then(fetchDoctors)} className="text-red-600">Remove</button>
-                  </td>
-                </>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+    return (
+        <div className="p-6 bg-white rounded shadow-sm mt-4 border-t-4 border-blue-600">
+            <h2 className="text-xl font-bold mb-4 text-blue-700">Medical Staff (Doctors)</h2>
+            <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 mb-6 p-4 bg-blue-50 rounded">
+                <input placeholder="First Name" value={formData.first_name} onChange={e => setFormData({...formData, first_name: e.target.value})} className="border p-2 flex-1 min-w-[150px]" required />
+                <input placeholder="Last Name" value={formData.last_name} onChange={e => setFormData({...formData, last_name: e.target.value})} className="border p-2 flex-1 min-w-[150px]" required />
+                <input placeholder="Specialization" value={formData.specialization} onChange={e => setFormData({...formData, specialization: e.target.value})} className="border p-2 flex-1 min-w-[150px]" required />
+                <input placeholder="Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="border p-2 flex-1 min-w-[150px]" required />
+                <button type="submit" className="bg-blue-600 text-white font-bold px-6 py-2 rounded hover:bg-blue-700">
+                    {editId ? 'Update' : 'Add Doctor'}
+                </button>
+            </form>
+            <table className="w-full text-left text-sm">
+                <thead className="bg-gray-100"><tr><th className="p-2">Doctor Name</th><th className="p-2">Specialization</th><th className="p-2">Actions</th></tr></thead>
+                <tbody>{doctors.map(d => (
+                    <tr key={d.doctor_id} className="border-b">
+                        <td className="p-2">Dr. {d.first_name} {d.last_name}</td>
+                        <td className="p-2">{d.specialization}</td>
+                        <td className="p-2 text-right">
+                            <button onClick={() => {setEditId(d.doctor_id); setFormData(d);}} className="text-blue-600 mr-3">Edit</button>
+                            <button onClick={async () => { if(window.confirm("Remove?")) { await deleteDoctor(d.doctor_id); load(); } }} className="text-red-600">Remove</button>
+                        </td>
+                    </tr>
+                ))}</tbody>
+            </table>
+        </div>
+    );
 };
-
 export default DoctorList;
